@@ -1,10 +1,11 @@
 // The fastest unofficial Schwab TraderAPI wrapper
 // Copyright (C) 2024 Samuel Troyer <samjtro.com>
 // See the GNU General Public License for more details
-package schwab
+package utils
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -20,11 +21,24 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"golang.org/x/oauth2"
+)
+
+var (
+	ctx = context.Background()
 )
 
 func init() {
 	err := godotenv.Load("config.env")
 	check(err)
+	conf = &oauth2.Config{
+		ClientID:     os.Getenv("APPKEY"),
+		ClientSecret: os.Getenv("SECRET"),
+		Endpoint: oauth2.Endpoint{
+			AuthURL: fmt.Sprintf("https://api.schwabapi.com/v1/oauth/authorize?client_id=%s&redirect_uri=%s", os.Getenv("APPKEY"), os.Getenv("CBURL")),
+		},
+	}
+	verifier = oauth2.GenerateVerifier()
 }
 
 type Agent struct {
@@ -220,35 +234,4 @@ func (agent *Agent) refresh() {
 	bodyBytes, err := io.ReadAll(res.Body)
 	check(err)
 	agent.tokens = parseAccessTokenResponse(string(bodyBytes))
-}
-
-// Handler is the general purpose request function for the td-ameritrade api, all functions will be routed through this handler function, which does all of the API calling work
-// It performs a GET request after adding the apikey found in the config.env file in the same directory as the program calling the function,
-// then returns the body of the GET request's return.
-// It takes one parameter:
-// req = a request of type *http.Request
-func (agent *Agent) Handler(req *http.Request) (*http.Response, error) {
-	if (&Agent{}) == agent {
-		log.Fatal("[ERR] empty agent - call 'Agent.Initiate' before making any API function calls.")
-	}
-	if !time.Now().Before(agent.tokens.BearerExpiration) {
-		agent.refresh()
-	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", agent.tokens.Bearer))
-	client := http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return resp, err
-	}
-	if resp.StatusCode == 401 {
-		err := os.Remove(fmt.Sprintf("%s/.trade", homeDir()))
-		check(err)
-	}
-	if resp.StatusCode < 200 || resp.StatusCode > 300 {
-		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
-		check(err)
-		log.Fatalf("[ERR] %d, %s", resp.StatusCode, body)
-	}
-	return resp, nil
 }
