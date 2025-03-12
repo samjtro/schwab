@@ -327,6 +327,8 @@ func (agent *Agent) Handler(req *http.Request) (*http.Response, error) {
 	switch true {
 	case resp.StatusCode == 200:
 		return resp, nil
+	case resp.StatusCode == 201:
+		return resp, nil
 	case resp.StatusCode == 401:
 		body, err := io.ReadAll(resp.Body)
 		isErrNil(err)

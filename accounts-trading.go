@@ -39,40 +39,6 @@ var (
 	// endpointPreviewOrder  string = accountEndpoint + "/accounts/%s/previewOrder"
 	// endpointTransactions string = accountEndpoint + "/accounts/%s/transactions"
 	endpointTransaction string = accountEndpoint + "/accounts/%s/transactions/%s"
-
-	OrderTemplate = `
-{
-  "orderType": "%s",
-  "session": "%s",
-  "duration": "%s",
-  "orderStrategyType": "%s",
-  "orderLegCollection": [
-    %s
-  ]
-}
-`
-
-	LegTemplate = `
-{
-  "instruction": "%s",
-  "quantity": %f,
-  "instrument": {
-    "symbol": "%s",
-    "assetType": "%s"
-  }
-},
-`
-
-	LegTemplateLast = `
-{
-  "instruction": "%s",
-  "quantity": %f,
-  "instrument": {
-    "symbol": "%s",
-    "assetType": "%s"
-  }
-},
-`
 )
 
 // Create a new Market order
@@ -115,53 +81,55 @@ func Strategy(strategy string) SingleLegOrderComposition {
 // Set SingleLegOrder.Instruction
 func Instruction(instruction string) SingleLegOrderComposition {
 	return func(order *SingleLegOrder) {
-		order.Instruction = instruction
+		if len(order.OrderLegCollection) == 0 {
+			order.OrderLegCollection = append(order.OrderLegCollection, OrderLeg{})
+		}
+		order.OrderLegCollection[0].Instruction = instruction
 	}
 }
 
 // Set SingleLegOrder.Quantity
-func Quantity(quantity float32) SingleLegOrderComposition {
+func Quantity(quantity int) SingleLegOrderComposition {
 	return func(order *SingleLegOrder) {
-		order.Quantity = quantity
+		if len(order.OrderLegCollection) == 0 {
+			order.OrderLegCollection = append(order.OrderLegCollection, OrderLeg{})
+		}
+		order.OrderLegCollection[0].Quantity = quantity
 	}
 }
 
 // Set SingleLegOrder.Instrument
 func Instrument(instrument SimpleOrderInstrument) SingleLegOrderComposition {
 	return func(order *SingleLegOrder) {
-		order.Instrument = instrument
-	}
-}
-
-func marshalSingleLegOrder(order *SingleLegOrder) string {
-	return fmt.Sprintf(OrderTemplate, order.OrderType, order.Session, order.Duration, order.Strategy, fmt.Sprintf(LegTemplate, order.Instruction, order.Quantity, order.Instrument.Symbol, order.Instrument.AssetType))
-}
-
-func marshalMultiLegOrder(order *MultiLegOrder) string {
-	var legs string
-	// UNTESTED
-	for i, leg := range order.OrderLegCollection {
-		if i != len(order.OrderLegCollection)-1 {
-			legs += fmt.Sprintf(LegTemplate, leg.Instruction, leg.Quantity, leg.Instrument.Symbol, leg.Instrument.AssetType)
-		} else {
-			legs += fmt.Sprintf(LegTemplateLast, leg.Instruction, leg.Quantity, leg.Instrument.Symbol, leg.Instrument.AssetType)
+		if len(order.OrderLegCollection) == 0 {
+			order.OrderLegCollection = append(order.OrderLegCollection, OrderLeg{})
 		}
+		order.OrderLegCollection[0].Instrument = instrument
 	}
-	return fmt.Sprintf(OrderTemplate)
 }
 
 // Submit a single-leg order for the specified encrypted account ID
 func (agent *Agent) SubmitSingleLegOrder(hashValue string, order *SingleLegOrder) error {
-	orderJson := marshalSingleLegOrder(order)
-	req, err := http.NewRequest("POST", fmt.Sprintf(endpointAccountOrders, hashValue), strings.NewReader(orderJson))
+	orderJson, err := sonic.Marshal(order)
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(orderJson))
+	req, err := http.NewRequest("POST", fmt.Sprintf(endpointAccountOrders, hashValue), strings.NewReader(string(orderJson)))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	_, err = agent.Handler(req)
+	resp, err := agent.Handler(req)
 	if err != nil {
 		return err
 	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("Error reading response body")
+	}
+	fmt.Println(string(body))
+	fmt.Println(resp.StatusCode)
 	return nil
 }
 

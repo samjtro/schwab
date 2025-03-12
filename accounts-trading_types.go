@@ -285,13 +285,17 @@ type FullOrderLeg struct {
 }
 
 type SingleLegOrder struct {
-	OrderType   string `default:"MARKET"`
-	Session     string `default:"NORMAL"`
-	Duration    string `default:"DAY"`
-	Strategy    string `default:"SINGLE"`
-	Instruction string
-	Quantity    float32
-	Instrument  SimpleOrderInstrument
+	OrderType          string     `json:"orderType"`
+	Session            string     `json:"session"`
+	Duration           string     `json:"duration"`
+	Strategy           string     `json:"orderStrategyType"`
+	OrderLegCollection []OrderLeg `json:"orderLegCollection"`
+}
+
+type OrderLeg struct {
+	Instruction string                `json:"instruction"`
+	Quantity    int                   `json:"quantity"`
+	Instrument  SimpleOrderInstrument `json:"instrument"`
 }
 
 type MultiLegOrder struct {
@@ -304,13 +308,13 @@ type MultiLegOrder struct {
 
 type SimpleOrderLeg struct {
 	Instruction string
-	Quantity    float32
+	Quantity    int
 	Instrument  SimpleOrderInstrument
 }
 
 type SimpleOrderInstrument struct {
-	Symbol    string
-	AssetType string // EQUITY
+	Symbol    string `json:"symbol"`
+	AssetType string `json:"assetType"`
 }
 
 type (
