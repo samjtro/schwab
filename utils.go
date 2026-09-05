@@ -46,6 +46,11 @@ import (
 type Agent struct {
 	Client *o.AuthorizedClient
 	Tokens Token
+	// AutoReauth controls whether Handler deletes the token file and runs
+	// interactive Reinitiate() when a transport error occurs.
+	// Initiate/Reinitiate set this to true so existing CLI behavior is unchanged.
+	// Long-running servers should set AutoReauth = false after Initiate().
+	AutoReauth bool
 }
 
 type Token struct {
@@ -262,6 +267,7 @@ func Initiate() *Agent {
 			agent = readDB()
 		}
 	}
+	agent.AutoReauth = true
 	return &agent
 }
 
@@ -276,6 +282,7 @@ func Reinitiate() *Agent {
 	} else {
 		agent = initiateMacWindows()
 	}
+	agent.AutoReauth = true
 	return &agent
 }
 
@@ -316,12 +323,20 @@ func (agent *Agent) Handler(req *http.Request) (*http.Response, error) {
 		client := http.Client{}
 		resp, err = client.Do(req)
 		if err != nil {
-			agent = Reinitiate()
+			if agent.AutoReauth {
+				agent = Reinitiate()
+			} else {
+				return nil, err
+			}
 		}
 	} else {
 		resp, err = agent.Client.Do(req)
 		if err != nil {
-			agent = Reinitiate()
+			if agent.AutoReauth {
+				agent = Reinitiate()
+			} else {
+				return nil, err
+			}
 		}
 	}
 	switch true {
